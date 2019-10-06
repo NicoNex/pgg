@@ -62,7 +62,7 @@ Options:
     --help Prints options details.
 
 Example:
-    pgg -m POST -e foo http://foobar.org
+    pgg [-m POST] [-e foo] [-c bar.conf] http://foobar.org
 `
 
 	fmt.Println(msg)
