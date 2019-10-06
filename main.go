@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"fmt"
-	"log"
 	"flag"
 	"bytes"
 	"strings"
@@ -13,7 +12,7 @@ import (
 	"github.com/logrusorgru/aurora"
 )
 
-const PROGRAM_NAME = "rq"
+const PROGRAM_NAME = "pgg"
 
 func escapeVars(rawVars []string) []string {
 	var esc []string
@@ -26,11 +25,27 @@ func escapeVars(rawVars []string) []string {
 	return esc
 }
 
+func usage() {
+	var msg = `pgg - Post from the Get-Go
+Pgg is a tool that allows you to make http request.
+
+Usage: pgg [OPTIONS] URL
+
+Options:
+    -m Specify the request method.
+    -e Specify the environment to use.
+    -f Specify the config file.
+    -h Prints this help message.`
+
+	fmt.Println(msg)
+}
+
 func main() {
 	var env Env
 	var cfg Config
 	var url string
 	var vars []string
+	var showHelp *bool
 	var reqMeth *string // the request type
 	var envName *string // the environment name
 	var cfgPath *string // path to the config file
@@ -42,10 +57,20 @@ func main() {
 	reqMeth = flag.String("m", "GET", "request method")
 	envName = flag.String("e", "default", "environment")
 	cfgPath = flag.String("f", dfltPath, "path to config file")
+	showHelp = flag.Bool("h", false, "show help")
 	flag.Parse()
 
+	if *showHelp || len(os.Args) <= 1 {
+		usage()
+		return
+	}
+
 	cfg = loadConfig(*cfgPath)
-	env = cfg.Envs[*envName]
+	var ok bool
+	if env, ok = cfg.Envs[*envName]; !ok {
+		fmt.Println(aurora.BrightRed("error: no default environment set and none specified."))
+		return
+	}
 	vars = escapeVars(env.Vars)
 
 	// replace variables in url with escaped ones
@@ -56,19 +81,19 @@ func main() {
 	// make the request to the url
 	request, err := http.NewRequest(strings.ToUpper(*reqMeth), url, &bytes.Buffer{})
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	defer response.Body.Close()
 
 	content, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	fmt.Println(string(content))
