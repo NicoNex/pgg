@@ -18,10 +18,7 @@
 
 package main
 
-import (
-	"log"
-	"github.com/BurntSushi/toml"
-)
+import "github.com/BurntSushi/toml"
 
 type Env struct {
 	Vars []string `toml:"vars"`
@@ -31,13 +28,13 @@ type Config struct {
 	Envs map[string]Env `toml:"env"`
 }
 
-func loadConfig(path string) Config {
+func loadConfig(path string) (Config, error) {
 	var cfg Config
 
 	_, err := toml.DecodeFile(path, &cfg)
 	if err != nil {
-		log.Fatal(err)
+		return Config{}, err
 	}
 
-	return cfg
+	return cfg, nil
 }

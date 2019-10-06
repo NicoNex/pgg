@@ -21,13 +21,14 @@ package main
 import (
 	"os"
 	"fmt"
+	"log"
 	"flag"
 	"bytes"
 	"strings"
 	"net/http"
 	"io/ioutil"
 
-	"github.com/logrusorgru/aurora"
+	. "github.com/logrusorgru/aurora"
 )
 
 const PROGRAM_NAME = "pgg"
@@ -47,13 +48,22 @@ func usage() {
 	var msg = `pgg - Post from the Get-Go
 Pgg is a tool that allows you to make http request.
 
+Pgg looks for the config file in the default location:
+    $HOME/.config/pgg/config
+
 Usage: pgg [OPTIONS] URL
 
 Options:
-    -m Specify the request method.
-    -e Specify the environment to use.
-    -f Specify the config file.
-    -h Prints this help message.`
+    -m     Specify the request method.
+    -e     Specify the environment to use.
+    -c     Specify an alternative config file.
+
+    -h     Prints this help message.
+    --help Prints options details.
+
+Example:
+    pgg -m POST -e foo http://foobar.org
+`
 
 	fmt.Println(msg)
 }
@@ -68,14 +78,16 @@ func main() {
 	var envName *string // the environment name
 	var cfgPath *string // path to the config file
 	var dfltPath string
+	var lgr *log.Logger
 
 	dfltPath = fmt.Sprintf("%s/.config/%s/config", os.Getenv("HOME"), PROGRAM_NAME)
+	lgr = log.New(os.Stderr, "", 0)
 
 	// parse the argument and gets the flags values.
-	reqMeth = flag.String("m", "GET", "request method")
-	envName = flag.String("e", "default", "environment")
-	cfgPath = flag.String("f", dfltPath, "path to config file")
-	showHelp = flag.Bool("h", false, "show help")
+	reqMeth = flag.String("m", "GET", "Request method")
+	envName = flag.String("e", "default", "Environment to use")
+	cfgPath = flag.String("c", dfltPath, "Config file")
+	showHelp = flag.Bool("h", false, "Show help and usage")
 	flag.Parse()
 
 	if *showHelp || len(os.Args) <= 1 {
@@ -83,35 +95,39 @@ func main() {
 		return
 	}
 
-	cfg = loadConfig(*cfgPath)
+	var err error
+	cfg, err = loadConfig(*cfgPath)
+	if err != nil {
+		lgr.Fatal(Bold(BrightRed(err)))
+	}
+
 	var ok bool
 	if env, ok = cfg.Envs[*envName]; !ok {
-		fmt.Println(aurora.BrightRed("error: no default environment set and none specified."))
-		return
+		lgr.Fatal(Bold(BrightRed("error: no default environment set and none specified.")))
 	}
 	vars = escapeVars(env.Vars)
 
 	// replace variables in url with escaped ones
 	r := strings.NewReplacer(vars...)
 	url = r.Replace(os.Args[len(os.Args)-1])
-	fmt.Println(aurora.BrightYellow(url), "\n")
+	fmt.Println(Bold(BrightYellow(url)), "\n")
 
 	// make the request to the url
 	request, err := http.NewRequest(strings.ToUpper(*reqMeth), url, &bytes.Buffer{})
 	if err != nil {
-		panic(err)
+		lgr.Fatal(Bold(BrightRed(err)))
 	}
 
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		panic(err)
+		lgr.Fatal(Bold(BrightRed(err)))
 	}
 	defer response.Body.Close()
 
 	content, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		panic(err)
+		lgr.Fatal(Bold(BrightRed(err)))
 	}
 
 	fmt.Println(string(content))
