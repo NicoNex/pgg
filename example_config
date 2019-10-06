@@ -1,0 +1,6 @@
+[env]
+	[env.default]
+	vars = ["BASE_URL=foo.org", "TEST=example"]
+
+	[env.test]
+	vars = ["EXAMPLE=foo"]
