@@ -1,7 +1,7 @@
 #!/bin/bash
 
 gzip pgg.1
-go build
+sudo -u $USER go build
 
 echo "Installing pgg..."
 cp pgg /usr/bin/

@@ -1,18 +1,17 @@
 .\" Manpage for pgg.
-.\" Contact nicolo.santamaria@gmail.com for bug report.
+.\" Contact nicolo.santamaria@gmail.com for bug reports.
 .TH pgg 1 "07-10-2019" "pgg man page"
 
 .SH NAME
 pgg \- Post from the Get-Go
 
 .SH SYNOPSIS
-.B pgg [-m GET] [-e foo] [-c bar.cfg]
-.I "http://foobar.org"
+.B pgg [-m GET] [-e foo] [-c config-file] http://example.com/{{my_var}}
 
 .SH DESCRIPTION
-Pgg Post from the Get-Go.
-Pgg is useful to send http requestS taking benefit from the ability of setting
-many environments in a config file.
+Pgg \- Post from the Get-Go.
+.PP
+Pgg is a client you can use to send http requests while taking advantage of custom environments set in a configuration file.
 
 .SH OPTIONS
 .B "-m, -method"
@@ -31,10 +30,47 @@ many environments in a config file.
 .B "--help"
     Prints options details.
 
+.SH FILES
+.B ~/.config/pgg/config
+    When starting pgg looks for the file above.
+    You can specify a custom path using the -c option.
+.PP
+
+The config file must be written in TOML style. The variables defined in the environments can be accessed in the link by enclosing their name in double curly brackets.
+.PP
+For example running:
+    pgg -e foo 'http://example.com/{{foo}}/{{name}}'
+
+will result in a GET request to
+    http://example.com/bar/pgg.
 
 
-.SH CONFIGURATION
-Pgg looks for the configuration file in the default location:
-    $HOME/.config/pgg/config
+.B    Sample configuration
+.PP
+    # pgg config file
 
-The config file must be written in TOML style.
+    # Set the default environment.
+    default_env = "foo"
+    [env]
+
+    # Add a custom environment named "foo".
+    [env.foo]
+    vars = [
+        "foo=bar",
+        "name=pgg"
+    ]
+
+    # Add a custom environment named "bar".
+    [env.bar]
+    vars = [
+        "base_url=www.example.com"
+    ]
+
+
+.SH ENVIRONMENT
+.B HOME
+    This variable is used to read the config file
+.I $HOME/.config/pgg/config
+
+.SH AUTHOR
+Nicolò Santamaria <nicolo.santamaria@gmail.com>
