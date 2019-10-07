@@ -46,7 +46,8 @@ func escapeVars(rawVars []string) []string {
 
 func usage() {
 	var msg = `pgg - Post from the Get-Go
-Pgg is a tool that allows you to make http request.
+Pgg is a tool for sending HTTP requests while taking advantages of configurable and exchangeable
+environments.
 
 Pgg looks for the config file in the default location:
     $HOME/.config/pgg/config
