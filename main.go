@@ -73,10 +73,10 @@ func main() {
 	var cfg Config
 	var reqUrl string
 	var vars []string
-	var showHelp *bool
-	var reqMeth *string // the request type
-	var envName *string // the environment name
-	var cfgPath *string // path to the config file
+	var showHelp bool
+	var reqMeth string // the request method
+	var envName string // the environment name
+	var cfgPath string // path to the config file
 	var dfltPath string
 	var lgr *log.Logger
 
@@ -84,32 +84,35 @@ func main() {
 	lgr = log.New(os.Stderr, "", 0)
 
 	// parse the argument and gets the flags values.
-	reqMeth = flag.String("m", "GET", "Request method")
-	envName = flag.String("e", "", "Environment to use")
-	cfgPath = flag.String("c", dfltPath, "Config file")
-	showHelp = flag.Bool("h", false, "Show help and usage")
+	flag.StringVar(&reqMeth, "method", "GET", "Request method")
+	flag.StringVar(&reqMeth, "m", "GET", "Request method (shorthand)")
+	flag.StringVar(&envName, "environment", "", "Environment to use")
+	flag.StringVar(&envName, "e", "", "Environment to use")
+	flag.StringVar(&cfgPath, "config", dfltPath, "Config file")
+	flag.StringVar(&cfgPath, "c", dfltPath, "Config file")
+	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
 	flag.Parse()
 
-	if *showHelp || len(os.Args) <= 1 {
+	if showHelp || len(os.Args) <= 1 {
 		usage()
 		return
 	}
 
 	var err error
-	cfg, err = loadConfig(*cfgPath)
+	cfg, err = loadConfig(cfgPath)
 	if err != nil {
 		lgr.Fatal(Bold(BrightRed(err)))
 	}
 
 	var ok bool
-	if *envName == "" {
+	if envName == "" {
 		if env, ok = cfg.Envs[cfg.DefaultEnv]; !ok {
 			msg := fmt.Sprintf("error: cannot find environment %s and none specified.", cfg.DefaultEnv)
 			lgr.Fatal(Bold(BrightRed(msg)))
 		}
 	} else {
-		if env, ok = cfg.Envs[*envName]; !ok {
-			msg := fmt.Sprintf("error: cannot find environment %s.", *envName)
+		if env, ok = cfg.Envs[envName]; !ok {
+			msg := fmt.Sprintf("error: cannot find environment %s.", envName)
 			lgr.Fatal(Bold(BrightRed(msg)))
 		}
 	}
@@ -123,7 +126,7 @@ func main() {
 
 	// make the request to the reqUrl
 	form := url.Values{}
-	request, err := http.NewRequest(strings.ToUpper(*reqMeth), reqUrl, strings.NewReader(form.Encode()))
+	request, err := http.NewRequest(strings.ToUpper(reqMeth), reqUrl, strings.NewReader(form.Encode()))
 	if err != nil {
 		lgr.Fatal(Bold(BrightRed(err)))
 	}
