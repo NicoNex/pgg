@@ -51,7 +51,7 @@ Pgg is a tool that allows you to make http request.
 Pgg looks for the config file in the default location:
     $HOME/.config/pgg/config
 
-Usage: pgg [OPTIONS] reqUrl
+Usage: pgg [OPTIONS] URL
 
 Options:
     -m     Specify the request method.
@@ -131,5 +131,5 @@ func main() {
 		lgr.Fatal(Bold(BrightRed(err)))
 	}
 
-	fmt.Printf("%s\nStatus: %s\n", string(content), Bold(BrightMagenta(response.Status)))
+	fmt.Printf("%s\n\nStatus: %s\n", string(content), Bold(BrightMagenta(response.Status)))
 }
