@@ -51,18 +51,24 @@ Pgg is a tool that allows you to make http request.
 Pgg looks for the config file in the default location:
     $HOME/.config/pgg/config
 
-Usage: pgg [OPTIONS] URL
+SYNOPSIS
+    pgg [options] http://foobar.org
 
-Options:
-    -m     Specify the request method.
-    -e     Specify the environment to use.
-    -c     Specify an alternative config file.
+OPTIONS
+    -m, -method
+        Specify the request method. (default GET)
 
-    -h     Prints this help message.
-    --help Prints options details.
+    -e, -env
+        Specify the environment to use.
 
-Example:
-    pgg [-m POST] [-e foo] [-c bar.conf] http://foobar.org
+    -c, -cfg
+        Specify an alternative config file.
+
+    -h
+        Prints this help message.
+
+    --help
+        Prints options details.
 `
 
 	fmt.Println(msg)
@@ -86,9 +92,9 @@ func main() {
 	// parse the argument and gets the flags values.
 	flag.StringVar(&reqMeth, "method", "GET", "Request method")
 	flag.StringVar(&reqMeth, "m", "GET", "Request method (shorthand)")
-	flag.StringVar(&envName, "environment", "", "Environment to use")
+	flag.StringVar(&envName, "env", "", "Environment to use")
 	flag.StringVar(&envName, "e", "", "Environment to use")
-	flag.StringVar(&cfgPath, "config", dfltPath, "Config file")
+	flag.StringVar(&cfgPath, "cfg", dfltPath, "Config file")
 	flag.StringVar(&cfgPath, "c", dfltPath, "Config file")
 	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
 	flag.Parse()
