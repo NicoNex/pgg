@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"log"
 	"flag"
-	"bytes"
 	"strings"
+	"net/url"
 	"net/http"
 	"io/ioutil"
 
@@ -51,7 +51,7 @@ Pgg is a tool that allows you to make http request.
 Pgg looks for the config file in the default location:
     $HOME/.config/pgg/config
 
-Usage: pgg [OPTIONS] URL
+Usage: pgg [OPTIONS] reqUrl
 
 Options:
     -m     Specify the request method.
@@ -71,7 +71,7 @@ Example:
 func main() {
 	var env Env
 	var cfg Config
-	var url string
+	var reqUrl string
 	var vars []string
 	var showHelp *bool
 	var reqMeth *string // the request type
@@ -107,13 +107,14 @@ func main() {
 	}
 	vars = escapeVars(env.Vars)
 
-	// replace variables in url with escaped ones
+	// replace variables in reqUrl with escaped ones
 	r := strings.NewReplacer(vars...)
-	url = r.Replace(os.Args[len(os.Args)-1])
-	fmt.Println(Bold(BrightYellow(url)), "\n")
+	reqUrl = r.Replace(os.Args[len(os.Args)-1])
+	fmt.Println(Bold(BrightBlue(reqUrl)), "\n")
 
-	// make the request to the url
-	request, err := http.NewRequest(strings.ToUpper(*reqMeth), url, &bytes.Buffer{})
+	// make the request to the reqUrl
+	form := url.Values{}
+	request, err := http.NewRequest(strings.ToUpper(*reqMeth), reqUrl, strings.NewReader(form.Encode()))
 	if err != nil {
 		lgr.Fatal(Bold(BrightRed(err)))
 	}
@@ -130,5 +131,5 @@ func main() {
 		lgr.Fatal(Bold(BrightRed(err)))
 	}
 
-	fmt.Println(string(content))
+	fmt.Printf("%s\nStatus: %s\n", string(content), Bold(BrightMagenta(response.Status)))
 }
