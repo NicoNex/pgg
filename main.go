@@ -85,7 +85,7 @@ func main() {
 
 	// parse the argument and gets the flags values.
 	reqMeth = flag.String("m", "GET", "Request method")
-	envName = flag.String("e", "default", "Environment to use")
+	envName = flag.String("e", "", "Environment to use")
 	cfgPath = flag.String("c", dfltPath, "Config file")
 	showHelp = flag.Bool("h", false, "Show help and usage")
 	flag.Parse()
@@ -102,15 +102,24 @@ func main() {
 	}
 
 	var ok bool
-	if env, ok = cfg.Envs[*envName]; !ok {
-		lgr.Fatal(Bold(BrightRed("error: no default environment set and none specified.")))
+	if *envName == "" {
+		if env, ok = cfg.Envs[cfg.DefaultEnv]; !ok {
+			msg := fmt.Sprintf("error: cannot find environment %s and none specified.", cfg.DefaultEnv)
+			lgr.Fatal(Bold(BrightRed(msg)))
+		}
+	} else {
+		if env, ok = cfg.Envs[*envName]; !ok {
+			msg := fmt.Sprintf("error: cannot find environment %s.", *envName)
+			lgr.Fatal(Bold(BrightRed(msg)))
+		}
 	}
+
 	vars = escapeVars(env.Vars)
 
 	// replace variables in reqUrl with escaped ones
 	r := strings.NewReplacer(vars...)
 	reqUrl = r.Replace(os.Args[len(os.Args)-1])
-	fmt.Println(Bold(BrightBlue(reqUrl)), "\n")
+	fmt.Println(Bold(BrightGreen(reqUrl)), "\n")
 
 	// make the request to the reqUrl
 	form := url.Values{}
