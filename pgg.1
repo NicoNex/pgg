@@ -1,0 +1,40 @@
+.\" Manpage for pgg.
+.\" Contact nicolo.santamaria@gmail.com for bug report.
+.TH pgg 1 "07-10-2019" "pgg man page"
+
+.SH NAME
+pgg \- Post from the Get-Go
+
+.SH SYNOPSIS
+.B pgg [-m GET] [-e foo] [-c bar.cfg]
+.I "http://foobar.org"
+
+.SH DESCRIPTION
+Pgg Post from the Get-Go.
+Pgg is useful to send http requestS taking benefit from the ability of setting
+many environments in a config file.
+
+.SH OPTIONS
+.B "-m, -method"
+    Specify the request method.
+
+.B "-e, -env"
+    Specify the environment to use.
+
+.B "-c, -cfg"
+    Specify an alternative config file.
+
+
+.B "-h"
+    Prints the help message.
+
+.B "--help"
+    Prints options details.
+
+
+
+.SH CONFIGURATION
+Pgg looks for the configuration file in the default location:
+    $HOME/.config/pgg/config
+
+The config file must be written in TOML style.
