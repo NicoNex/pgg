@@ -1,7 +1,6 @@
 #!/bin/bash
 
-gzip pgg.1
-sudo -u $USER go build
+gzip -c pgg.1 > pgg.1.gz
 
 echo "Installing pgg..."
 cp pgg /usr/bin/
