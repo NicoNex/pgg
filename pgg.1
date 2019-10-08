@@ -32,17 +32,23 @@ Pgg is a client you can use to send http requests while taking advantage of cust
 
 .SH FILES
 .B ~/.config/pgg/config
-    When starting pgg looks for the file above.
+    When starting pgg looks for configuration files in the following order:
+
     You can specify a custom path using the -c option.
-.PP
 
-The config file must be written in TOML style. The variables defined in the environments can be accessed in the link by enclosing their name in double curly brackets.
-.PP
-For example running:
-    pgg -e foo 'http://example.com/{{foo}}/{{name}}'
+      1. ~/.config/pgg/config
 
-will result in a GET request to
-    http://example.com/bar/pgg.
+      2. ~/.pgg/config
+
+
+    The config file must be written in TOML style.
+    The variables defined in the environments can be accessed by enclosing their name in double curly brackets.
+
+    For example running:
+      pgg -e foo 'http://example.com/{{foo}}/{{name}}'
+
+    will result in a GET request to
+      http://example.com/bar/pgg.
 
 
 .B    Sample configuration
@@ -52,19 +58,20 @@ will result in a GET request to
     # Set the default environment.
     default_env = "foo"
     [env]
+        # Add a custom environment named "foo".
+        [env.foo]
+        scheme = "http://"
+        vars = [
+            "foo=bar",
+            "name=pgg"
+        ]
 
-    # Add a custom environment named "foo".
-    [env.foo]
-    vars = [
-        "foo=bar",
-        "name=pgg"
-    ]
-
-    # Add a custom environment named "bar".
-    [env.bar]
-    vars = [
-        "base_url=www.example.com"
-    ]
+        # Add a custom environment named "bar".
+        [env.bar]
+        scheme = "ftp://"
+        vars = [
+            "base_url=www.example.com"
+        ]
 
 
 .SH ENVIRONMENT

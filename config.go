@@ -22,11 +22,11 @@ import "github.com/BurntSushi/toml"
 
 type Env struct {
 	Vars []string `toml:"vars"`
+	Scheme string `toml:"scheme"`
 }
 
 type Config struct {
 	DefaultEnv string `toml:"default_env"`
-	DefaultScheme string `toml:"default_scheme"`
 	Envs map[string]Env `toml:"env"`
 }
 

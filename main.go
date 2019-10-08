@@ -18,12 +18,21 @@
 
 package main
 
+// #ifdef _WIN32
+// #include <io.h>
+// #define isatty _isatty
+// #else
+// #include <unistd.h>
+// #endif
+import "C"
+
 import (
 	"os"
 	"fmt"
 	"log"
 	"flag"
 	"errors"
+	"regexp"
 	"strings"
 	"net/url"
 	"net/http"
@@ -33,6 +42,12 @@ import (
 )
 
 const PROGRAM_NAME = "pgg"
+
+// TODO: find a way to do this in pure go
+func isatty() bool {
+	fd := os.Stdout.Fd()
+	return C.isatty(C.int(fd)) == C.int(1)
+}
 
 func escapeVars(rawVars []string) []string {
 	var esc []string
@@ -46,10 +61,14 @@ func escapeVars(rawVars []string) []string {
 }
 
 // Replace the variables in the url with their values defined in the config.
-func formatUrl(rawUrl string, rawVars []string) string {
+func formatUrl(rawUrl string, env Env) string {
 	var vars []string
 
-	vars = escapeVars(rawVars)
+	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, rawUrl); !ok {
+		rawUrl = fmt.Sprintf("%s%s", env.Scheme, rawUrl)
+	}
+
+	vars = escapeVars(env.Vars)
 	r := strings.NewReplacer(vars...)
 	return r.Replace(rawUrl)
 }
@@ -57,12 +76,12 @@ func formatUrl(rawUrl string, rawVars []string) string {
 func configLookup() (string, error) {
 	home := os.Getenv("HOME")
 	paths := [2]string{
-		fmt.Sprintf("%s/.config/%s/config", home, PROGRAM_NAME),
-		fmt.Sprintf("%s/.%s/config", home, PROGRAM_NAME),
+		fmt.Sprintf("%s/.config/pgg/config", home),
+		fmt.Sprintf("%s/.pgg/config", home),
 	}
 
 	for _, p := range paths {
-		if _, err := os.Stat(p); os.IsExist(err) {
+		if _, err := os.Stat(p); err == nil {
 			return p, nil
 		}
 	}
@@ -100,11 +119,15 @@ OPTIONS
 	fmt.Println(msg)
 }
 
+
+// TODO: implement a verbose mode and make it add the
+// environment scheme by default if missing.
 func main() {
 	var env Env
 	var cfg Config
-	var fmtUrl string
 	var showHelp bool
+	var verbose bool
+	var fmtUrl string
 	var reqMeth string // the request method
 	var envName string // the environment name
 	var cfgPath string // path to the config file
@@ -120,6 +143,8 @@ func main() {
 	flag.StringVar(&cfgPath, "cfg", "", "Config file")
 	flag.StringVar(&cfgPath, "c", "", "Config file")
 	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
+	flag.BoolVar(&verbose, "v", false, "Print more information")
+	flag.BoolVar(&verbose, "verbose", false, "Print more information")
 	flag.Parse()
 
 	if showHelp || len(os.Args) < 2 {
@@ -129,11 +154,12 @@ func main() {
 
 	// If no cfg file specified in argument look in the default paths.
 	if cfgPath == "" {
-		p, err := configLookup()
+		var err error
+
+		cfgPath, err = configLookup()
 		if err != nil {
 			lgr.Fatal(Bold(BrightRed(err)))
 		}
-		cfgPath = p
 	}
 
 	cfg, err := loadConfig(cfgPath)
@@ -156,8 +182,7 @@ func main() {
 	}
 
 	rawUrl := os.Args[len(os.Args)-1]
-	fmtUrl = formatUrl(rawUrl, env.Vars)
-	fmt.Println(Bold(BrightGreen(fmtUrl)))
+	fmtUrl = formatUrl(rawUrl, env)
 
 	// make the request to the reqUrl
 	form := url.Values{}
@@ -179,9 +204,21 @@ func main() {
 	}
 
 	body := string(content)
-	if body != "" {
-		fmt.Printf("%s\n\nStatus: %s\n", body, Bold(BrightMagenta(response.Status)))
+	if isatty() {
+		if body != "" {
+			fmt.Printf(
+				"%s\n%sStatus: %s\n",
+				Bold(BrightGreen(fmtUrl)), body,
+				Bold(BrightMagenta(response.Status)),
+			)
+		} else {
+			fmt.Printf(
+				"%s\nStatus: %s\n",
+				Bold(BrightGreen(fmtUrl)),
+				Bold(BrightMagenta(response.Status)),
+			)
+		}
 	} else {
-		fmt.Printf("Status: %s\n", Bold(BrightMagenta(response.Status)))
+		fmt.Println(body)
 	}
 }
