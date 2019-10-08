@@ -26,6 +26,7 @@ type Env struct {
 
 type Config struct {
 	DefaultEnv string `toml:"default_env"`
+	DefaultScheme string `toml:"default_scheme"`
 	Envs map[string]Env `toml:"env"`
 }
 

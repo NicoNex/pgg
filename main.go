@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log"
 	"flag"
+	"errors"
 	"strings"
 	"net/url"
 	"net/http"
@@ -42,6 +43,31 @@ func escapeVars(rawVars []string) []string {
 	}
 
 	return esc
+}
+
+// Replace the variables in the url with their values defined in the config.
+func formatUrl(rawUrl string, rawVars []string) string {
+	var vars []string
+
+	vars = escapeVars(rawVars)
+	r := strings.NewReplacer(vars...)
+	return r.Replace(rawUrl)
+}
+
+func configLookup() (string, error) {
+	home := os.Getenv("HOME")
+	paths := [2]string{
+		fmt.Sprintf("%s/.config/%s/config", home, PROGRAM_NAME),
+		fmt.Sprintf("%s/.%s/config", home, PROGRAM_NAME),
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); os.IsExist(err) {
+			return p, nil
+		}
+	}
+
+	return "", errors.New("error: config file not found")
 }
 
 func usage() {
@@ -77,16 +103,13 @@ OPTIONS
 func main() {
 	var env Env
 	var cfg Config
-	var reqUrl string
-	var vars []string
+	var fmtUrl string
 	var showHelp bool
 	var reqMeth string // the request method
 	var envName string // the environment name
 	var cfgPath string // path to the config file
-	var dfltPath string
 	var lgr *log.Logger
 
-	dfltPath = fmt.Sprintf("%s/.config/%s/config", os.Getenv("HOME"), PROGRAM_NAME)
 	lgr = log.New(os.Stderr, "", 0)
 
 	// parse the argument and gets the flags values.
@@ -94,26 +117,35 @@ func main() {
 	flag.StringVar(&reqMeth, "m", "GET", "Request method (shorthand)")
 	flag.StringVar(&envName, "env", "", "Environment to use")
 	flag.StringVar(&envName, "e", "", "Environment to use")
-	flag.StringVar(&cfgPath, "cfg", dfltPath, "Config file")
-	flag.StringVar(&cfgPath, "c", dfltPath, "Config file")
+	flag.StringVar(&cfgPath, "cfg", "", "Config file")
+	flag.StringVar(&cfgPath, "c", "", "Config file")
 	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
 	flag.Parse()
 
-	if showHelp || len(os.Args) <= 1 {
+	if showHelp || len(os.Args) < 2 {
 		usage()
 		return
 	}
 
-	var err error
-	cfg, err = loadConfig(cfgPath)
+	// If no cfg file specified in argument look in the default paths.
+	if cfgPath == "" {
+		p, err := configLookup()
+		if err != nil {
+			lgr.Fatal(Bold(BrightRed(err)))
+		}
+		cfgPath = p
+	}
+
+	cfg, err := loadConfig(cfgPath)
 	if err != nil {
 		lgr.Fatal(Bold(BrightRed(err)))
 	}
 
+	// The flag value overrides the default.
 	var ok bool
 	if envName == "" {
 		if env, ok = cfg.Envs[cfg.DefaultEnv]; !ok {
-			msg := fmt.Sprintf("error: cannot find environment %s and none specified.", cfg.DefaultEnv)
+			msg := fmt.Sprintf("error: cannot find environment %s and none specified", envName)
 			lgr.Fatal(Bold(BrightRed(msg)))
 		}
 	} else {
@@ -123,16 +155,13 @@ func main() {
 		}
 	}
 
-	vars = escapeVars(env.Vars)
-
-	// replace variables in reqUrl with escaped ones
-	r := strings.NewReplacer(vars...)
-	reqUrl = r.Replace(os.Args[len(os.Args)-1])
-	fmt.Println(Bold(BrightGreen(reqUrl)), "\n")
+	rawUrl := os.Args[len(os.Args)-1]
+	fmtUrl = formatUrl(rawUrl, env.Vars)
+	fmt.Println(Bold(BrightGreen(fmtUrl)))
 
 	// make the request to the reqUrl
 	form := url.Values{}
-	request, err := http.NewRequest(strings.ToUpper(reqMeth), reqUrl, strings.NewReader(form.Encode()))
+	request, err := http.NewRequest(strings.ToUpper(reqMeth), fmtUrl, strings.NewReader(form.Encode()))
 	if err != nil {
 		lgr.Fatal(Bold(BrightRed(err)))
 	}
@@ -149,5 +178,10 @@ func main() {
 		lgr.Fatal(Bold(BrightRed(err)))
 	}
 
-	fmt.Printf("%s\n\nStatus: %s\n", string(content), Bold(BrightMagenta(response.Status)))
+	body := string(content)
+	if body != "" {
+		fmt.Printf("%s\n\nStatus: %s\n", body, Bold(BrightMagenta(response.Status)))
+	} else {
+		fmt.Printf("Status: %s\n", Bold(BrightMagenta(response.Status)))
+	}
 }
