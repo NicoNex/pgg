@@ -174,9 +174,9 @@ func main() {
 		url := Bold(BrightGreen(fmtUrl))
 
 		if body != "" {
-			fmt.Printf("%s\nStatus: %s\n%s\n", body, status, url)
+			fmt.Printf("%s\n%s\n%s\n", body, status, url)
 		} else {
-			fmt.Printf("Status: %s\n%s\n", status, url)
+			fmt.Printf("%s\n%s\n", status, url)
 		}
 	} else {
 		fmt.Println(body)
