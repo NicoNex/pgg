@@ -18,7 +18,14 @@
 
 package main
 
-import "github.com/BurntSushi/toml"
+import (
+	"os"
+	"fmt"
+	"errors"
+	"runtime"
+
+	"github.com/BurntSushi/toml"
+)
 
 type Env struct {
 	Vars []string `toml:"vars"`
@@ -28,6 +35,29 @@ type Env struct {
 type Config struct {
 	DefaultEnv string `toml:"default_env"`
 	Envs map[string]Env `toml:"env"`
+}
+
+func configLookup() (string, error) {
+	var home = "./"
+
+	if runtime.GOOS == "windows" {
+		home = os.Getenv("UserProfile")
+	} else {
+		home = os.Getenv("HOME")
+	}
+
+	paths := [2]string{
+		fmt.Sprintf("%s/.config/pgg/config", home),
+		fmt.Sprintf("%s/.pgg/config", home),
+	}
+
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+
+	return "", errors.New("error: config file not found")
 }
 
 func loadConfig(path string) (Config, error) {

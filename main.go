@@ -18,20 +18,11 @@
 
 package main
 
-// #ifdef _WIN32
-// #include <io.h>
-// #define isatty _isatty
-// #else
-// #include <unistd.h>
-// #endif
-import "C"
-
 import (
 	"os"
 	"fmt"
 	"log"
 	"flag"
-	"errors"
 	"regexp"
 	"strings"
 	"net/url"
@@ -39,6 +30,7 @@ import (
 	"io/ioutil"
 
 	. "github.com/logrusorgru/aurora"
+	term "golang.org/x/crypto/ssh/terminal"
 )
 
 const PROGRAM_NAME = "pgg"
@@ -46,7 +38,7 @@ const PROGRAM_NAME = "pgg"
 // TODO: find a way to do this in pure go
 func isatty() bool {
 	fd := os.Stdout.Fd()
-	return C.isatty(C.int(fd)) == C.int(1)
+	return term.IsTerminal(int(fd))
 }
 
 func escapeVars(rawVars []string) []string {
@@ -73,28 +65,13 @@ func formatUrl(rawUrl string, env Env) string {
 	return r.Replace(rawUrl)
 }
 
-func configLookup() (string, error) {
-	home := os.Getenv("HOME")
-	paths := [2]string{
-		fmt.Sprintf("%s/.config/pgg/config", home),
-		fmt.Sprintf("%s/.pgg/config", home),
-	}
-
-	for _, p := range paths {
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-	}
-
-	return "", errors.New("error: config file not found")
-}
-
 func usage() {
 	var msg = `pgg - Post from the Get-Go
 Pgg is a tool that allows you to make http request.
 
-Pgg looks for the config file in the default location:
-    $HOME/.config/pgg/config
+When starting pgg looks for configuration files in the following order:
+    1. ~/.config/pgg/config
+	2. ~/.pgg/config
 
 SYNOPSIS
     pgg [options] http://foobar.org
@@ -102,31 +79,22 @@ SYNOPSIS
 OPTIONS
     -m, -method
         Specify the request method. (default GET)
-
     -e, -env
         Specify the environment to use.
-
     -c, -cfg
         Specify an alternative config file.
-
     -h
         Prints this help message.
-
     --help
-        Prints options details.
-`
-
+        Prints options details.`
 	fmt.Println(msg)
 }
 
 
-// TODO: implement a verbose mode and make it add the
-// environment scheme by default if missing.
 func main() {
 	var env Env
 	var cfg Config
 	var showHelp bool
-	var verbose bool
 	var fmtUrl string
 	var reqMeth string // the request method
 	var envName string // the environment name
@@ -143,8 +111,6 @@ func main() {
 	flag.StringVar(&cfgPath, "cfg", "", "Config file")
 	flag.StringVar(&cfgPath, "c", "", "Config file")
 	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
-	flag.BoolVar(&verbose, "v", false, "Print more information")
-	flag.BoolVar(&verbose, "verbose", false, "Print more information")
 	flag.Parse()
 
 	if showHelp || len(os.Args) < 2 {
@@ -155,7 +121,6 @@ func main() {
 	// If no cfg file specified in argument look in the default paths.
 	if cfgPath == "" {
 		var err error
-
 		cfgPath, err = configLookup()
 		if err != nil {
 			lgr.Fatal(Bold(BrightRed(err)))
@@ -205,18 +170,13 @@ func main() {
 
 	body := string(content)
 	if isatty() {
+		status := Bold(BrightMagenta(fmt.Sprintf("Status: %s", response.Status)))
+		url := Bold(BrightGreen(fmtUrl))
+
 		if body != "" {
-			fmt.Printf(
-				"%s\n%sStatus: %s\n",
-				Bold(BrightGreen(fmtUrl)), body,
-				Bold(BrightMagenta(response.Status)),
-			)
+			fmt.Printf("%s\nStatus: %s\n%s\n", body, status, url)
 		} else {
-			fmt.Printf(
-				"%s\nStatus: %s\n",
-				Bold(BrightGreen(fmtUrl)),
-				Bold(BrightMagenta(response.Status)),
-			)
+			fmt.Printf("Status: %s\n%s\n", status, url)
 		}
 	} else {
 		fmt.Println(body)
