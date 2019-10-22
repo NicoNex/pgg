@@ -23,6 +23,8 @@ Pgg is a client you can use to send http requests while taking advantage of cust
 .B "-c, -cfg"
     Specify an alternative config file.
 
+.B "-f -file"
+    Specify a file to upload.
 
 .B "-h"
     Prints the help message.
@@ -35,7 +37,6 @@ Pgg is a client you can use to send http requests while taking advantage of cust
     When starting pgg looks for configuration files in the following order:
 
       1. ~/.config/pgg/config
-
       2. ~/.pgg/config
 
     You can specify a custom path using the -c option.
@@ -55,7 +56,6 @@ Pgg is a client you can use to send http requests while taking advantage of cust
 
     # Set the default environment.
     default_env = "foo"
-    [env]
         # Add a custom environment named "foo".
         [env.foo]
         scheme = "http://"

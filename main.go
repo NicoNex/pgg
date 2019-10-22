@@ -21,7 +21,6 @@ package main
 import (
 	"os"
 	"fmt"
-	"log"
 	"flag"
 	"regexp"
 	"strings"
@@ -65,6 +64,11 @@ func formatUrl(rawUrl string, env Env) string {
 	return r.Replace(rawUrl)
 }
 
+func die(msg interface{}) {
+	fmt.Println(BrightRed(msg))
+	os.Exit(1)
+}
+
 func usage() {
 	var msg = `pgg - Post from the Get-Go
 Pgg is a tool that allows you to make http request.
@@ -83,6 +87,8 @@ OPTIONS
         Specify the environment to use.
     -c, -cfg
         Specify an alternative config file.
+	-f, -file
+		Specify a file to upload.
     -h
         Prints this help message.
     --help
@@ -96,20 +102,20 @@ func main() {
 	var cfg Config
 	var showHelp bool
 	var fmtUrl string
-	var reqMeth string // the request method
+	var method string // the request method
 	var envName string // the environment name
 	var cfgPath string // path to the config file
-	var lgr *log.Logger
-
-	lgr = log.New(os.Stderr, "", 0)
+	var filepath string // path to the file to upload
 
 	// parse the argument and gets the flags values.
-	flag.StringVar(&reqMeth, "method", "GET", "Request method")
-	flag.StringVar(&reqMeth, "m", "GET", "Request method (shorthand)")
+	flag.StringVar(&method, "method", "GET", "Request method")
+	flag.StringVar(&method, "m", "GET", "Request method (shorthand)")
 	flag.StringVar(&envName, "env", "", "Environment to use")
 	flag.StringVar(&envName, "e", "", "Environment to use")
 	flag.StringVar(&cfgPath, "cfg", "", "Config file")
 	flag.StringVar(&cfgPath, "c", "", "Config file")
+	flag.StringVar(&filepath, "file", "", "Path to the file to upload")
+	flag.StringVar(&filepath, "f", "", "Path to the file to upload")
 	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
 	flag.Parse()
 
@@ -123,13 +129,13 @@ func main() {
 		var err error
 		cfgPath, err = configLookup()
 		if err != nil {
-			lgr.Fatal(Bold(BrightRed(err)))
+			die(err)
 		}
 	}
 
 	cfg, err := loadConfig(cfgPath)
 	if err != nil {
-		lgr.Fatal(Bold(BrightRed(err)))
+		die(err)
 	}
 
 	// The flag value overrides the default.
@@ -137,12 +143,12 @@ func main() {
 	if envName == "" {
 		if env, ok = cfg.Envs[cfg.DefaultEnv]; !ok {
 			msg := fmt.Sprintf("error: cannot find environment %s and none specified", envName)
-			lgr.Fatal(Bold(BrightRed(msg)))
+			die(msg)
 		}
 	} else {
 		if env, ok = cfg.Envs[envName]; !ok {
 			msg := fmt.Sprintf("error: cannot find environment %s.", envName)
-			lgr.Fatal(Bold(BrightRed(msg)))
+			die(msg)
 		}
 	}
 
@@ -151,27 +157,44 @@ func main() {
 
 	// make the request to the reqUrl
 	form := url.Values{}
-	request, err := http.NewRequest(strings.ToUpper(reqMeth), fmtUrl, strings.NewReader(form.Encode()))
+	request, err := http.NewRequest(strings.ToUpper(method), fmtUrl, strings.NewReader(form.Encode()))
 	if err != nil {
-		lgr.Fatal(Bold(BrightRed(err)))
+		die(err)
+	}
+
+	// handle the file upload
+	if filename != "" {
+		method = "POST"
+		file, handler, err := request.FormFile(filepath)
+		if err != nil {
+			die(err)
+		}
+		defer file.Close()
+
+		f, err := os.OpenFile(handler.Filename, os.O_WRONLY|os.O_CREATE, 0666)
+		if err != nil {
+			die(err)
+		}
+		defer f.Close()
+		io.Copy(f, file)
 	}
 
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		lgr.Fatal(Bold(BrightRed(err)))
+		die(err)
 	}
 	defer response.Body.Close()
 
 	content, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		lgr.Fatal(Bold(BrightRed(err)))
+		die(err)
 	}
 
 	body := string(content)
 	if isatty() {
-		status := Bold(BrightMagenta(fmt.Sprintf("Status: %s", response.Status)))
-		url := Bold(BrightGreen(fmtUrl))
+		status := BrightMagenta(fmt.Sprintf("Status: %s", response.Status))
+		url := BrightGreen(fmtUrl)
 
 		if body != "" {
 			fmt.Printf("%s\n%s\n%s\n", body, status, url)
