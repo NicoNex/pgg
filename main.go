@@ -144,17 +144,14 @@ func main() {
 	}
 
 	// The flag value overrides the default.
-	var ok bool
 	if envName == "" {
-		if env, ok = cfg.Envs[cfg.DefaultEnv]; !ok {
-			msg := fmt.Sprintf("error: cannot find environment %s and none specified", envName)
-			die(msg)
-		}
-	} else {
-		if env, ok = cfg.Envs[envName]; !ok {
-			msg := fmt.Sprintf("error: cannot find environment %s.", envName)
-			die(msg)
-		}
+		envName = cfg.DefaultEnv
+	}
+
+	var ok bool
+	if env, ok = cfg.Envs[envName]; !ok {
+		msg := fmt.Sprintf("error: cannot find environment %s.", envName)
+		die(msg)
 	}
 
 	rawUrl := os.Args[len(os.Args)-1]
@@ -168,8 +165,8 @@ func main() {
 		}
 		defer file.Close()
 
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
+		requestBody := &bytes.Buffer{}
+		writer := multipart.NewWriter(requestBody)
 		part, err := writer.CreateFormFile("file", filepath.Base(file.Name()))
 		if err != nil {
 			die(err)
@@ -177,7 +174,7 @@ func main() {
 
 		io.Copy(part, file)
 		writer.Close()
-		request, err = http.NewRequest("POST", fmtUrl, body)
+		request, err = http.NewRequest("POST", fmtUrl, requestBody)
 		if err != nil {
 			die(err)
 		}
