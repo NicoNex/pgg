@@ -20,13 +20,17 @@ package main
 
 import (
 	"os"
+	"io"
 	"fmt"
 	"flag"
+	"bytes"
 	"regexp"
 	"strings"
 	"net/url"
 	"net/http"
 	"io/ioutil"
+	"path/filepath"
+	"mime/multipart"
 
 	. "github.com/logrusorgru/aurora"
 	term "golang.org/x/crypto/ssh/terminal"
@@ -105,7 +109,8 @@ func main() {
 	var method string // the request method
 	var envName string // the environment name
 	var cfgPath string // path to the config file
-	var filepath string // path to the file to upload
+	var fpath string // path to the file to upload
+	var request *http.Request
 
 	// parse the argument and gets the flags values.
 	flag.StringVar(&method, "method", "GET", "Request method")
@@ -114,8 +119,8 @@ func main() {
 	flag.StringVar(&envName, "e", "", "Environment to use")
 	flag.StringVar(&cfgPath, "cfg", "", "Config file")
 	flag.StringVar(&cfgPath, "c", "", "Config file")
-	flag.StringVar(&filepath, "file", "", "Path to the file to upload")
-	flag.StringVar(&filepath, "f", "", "Path to the file to upload")
+	flag.StringVar(&fpath, "file", "", "Path to the file to upload")
+	flag.StringVar(&fpath, "f", "", "Path to the file to upload")
 	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
 	flag.Parse()
 
@@ -155,28 +160,35 @@ func main() {
 	rawUrl := os.Args[len(os.Args)-1]
 	fmtUrl = formatUrl(rawUrl, env)
 
-	// make the request to the reqUrl
-	form := url.Values{}
-	request, err := http.NewRequest(strings.ToUpper(method), fmtUrl, strings.NewReader(form.Encode()))
-	if err != nil {
-		die(err)
-	}
-
 	// handle the file upload
-	if filename != "" {
-		method = "POST"
-		file, handler, err := request.FormFile(filepath)
+	if fpath != "" {
+		file, err := os.Open(fpath)
 		if err != nil {
 			die(err)
 		}
 		defer file.Close()
 
-		f, err := os.OpenFile(handler.Filename, os.O_WRONLY|os.O_CREATE, 0666)
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, err := writer.CreateFormFile("file", filepath.Base(file.Name()))
 		if err != nil {
 			die(err)
 		}
-		defer f.Close()
-		io.Copy(f, file)
+
+		io.Copy(part, file)
+		writer.Close()
+		request, err = http.NewRequest("POST", fmtUrl, body)
+		if err != nil {
+			die(err)
+		}
+		request.Header.Add("Content-Type", writer.FormDataContentType())
+	} else {
+		form := url.Values{}
+		var err error
+		request, err = http.NewRequest(strings.ToUpper(method), fmtUrl, strings.NewReader(form.Encode()))
+		if err != nil {
+			die(err)
+		}
 	}
 
 	client := &http.Client{}
