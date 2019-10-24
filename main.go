@@ -57,15 +57,18 @@ func escapeVars(rawVars []string) []string {
 
 // Replace the variables in the url with their values defined in the config.
 func formatUrl(rawUrl string, env Env) string {
+	var url string
 	var vars []string
+
+	vars = escapeVars(env.Vars)
+	r := strings.NewReplacer(vars...)
+	url = r.Replace(rawUrl)
 
 	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, rawUrl); !ok {
 		rawUrl = fmt.Sprintf("%s%s", env.Scheme, rawUrl)
 	}
 
-	vars = escapeVars(env.Vars)
-	r := strings.NewReplacer(vars...)
-	return r.Replace(rawUrl)
+	return url
 }
 
 func die(msg interface{}) {
@@ -91,8 +94,8 @@ OPTIONS
         Specify the environment to use.
     -c, -cfg
         Specify an alternative config file.
-	-f, -file
-		Specify a file to upload.
+    -f, -file
+        Specify a file to upload.
     -h
         Prints this help message.
     --help
@@ -109,7 +112,7 @@ func main() {
 	var method string // the request method
 	var envName string // the environment name
 	var cfgPath string // path to the config file
-	var fpath string // path to the file to upload
+	var fileFlag string // path to the file to upload
 	var request *http.Request
 
 	// parse the argument and gets the flags values.
@@ -119,8 +122,8 @@ func main() {
 	flag.StringVar(&envName, "e", "", "Environment to use")
 	flag.StringVar(&cfgPath, "cfg", "", "Config file")
 	flag.StringVar(&cfgPath, "c", "", "Config file")
-	flag.StringVar(&fpath, "file", "", "Path to the file to upload")
-	flag.StringVar(&fpath, "f", "", "Path to the file to upload")
+	flag.StringVar(&fileFlag, "file", "", "Path to the file to upload")
+	flag.StringVar(&fileFlag, "f", "", "Path to the file to upload")
 	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
 	flag.Parse()
 
@@ -158,8 +161,12 @@ func main() {
 	fmtUrl = formatUrl(rawUrl, env)
 
 	// handle the file upload
-	if fpath != "" {
-		file, err := os.Open(fpath)
+	if fileFlag != "" {
+		tokens := strings.Split(fileFlag, "=")
+		fieldname := tokens[0]
+		path := tokens[1]
+
+		file, err := os.Open(path)
 		if err != nil {
 			die(err)
 		}
@@ -167,7 +174,7 @@ func main() {
 
 		requestBody := &bytes.Buffer{}
 		writer := multipart.NewWriter(requestBody)
-		part, err := writer.CreateFormFile("file", filepath.Base(file.Name()))
+		part, err := writer.CreateFormFile(fieldname, filepath.Base(file.Name()))
 		if err != nil {
 			die(err)
 		}

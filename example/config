@@ -1,16 +1,11 @@
 default_env = "dummy"
 
-[env]
-	[env.default]
-	scheme = "http://"
-	vars = ["BASE_URL=foo.org", "TEST=example"]
+[env.default]
+scheme = "http://"
+vars = ["BASE_URL=foo.org", "TEST=example"]
 
-	[env.test]
-	scheme = "ftp://"
-	vars = ["EXAMPLE=foo"]
+[env.test]
+scheme = "ftp://"
+vars = ["EXAMPLE=foo"]
 
-	[env.nnx]
-	scheme = "http://"
-	vars = ["sas=sas"]
-
-	[env.dummy]
+[env.dummy]
