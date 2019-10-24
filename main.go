@@ -65,7 +65,7 @@ func formatUrl(rawUrl string, env Env) string {
 	url = r.Replace(rawUrl)
 
 	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, rawUrl); !ok {
-		rawUrl = fmt.Sprintf("%s%s", env.Scheme, rawUrl)
+		url = fmt.Sprintf("%s%s", env.Scheme, url)
 	}
 
 	return url
