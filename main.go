@@ -64,7 +64,7 @@ func formatUrl(rawUrl string, env Env) string {
 	r := strings.NewReplacer(vars...)
 	url = r.Replace(rawUrl)
 
-	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, rawUrl); !ok {
+	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, url); !ok {
 		url = fmt.Sprintf("%s%s", env.Scheme, url)
 	}
 
@@ -82,7 +82,7 @@ Pgg is a tool that allows you to make http request.
 
 When starting pgg looks for configuration files in the following order:
     1. ~/.config/pgg/config
-	2. ~/.pgg/config
+    2. ~/.pgg/config
 
 SYNOPSIS
     pgg [options] http://foobar.org
