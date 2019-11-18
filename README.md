@@ -2,7 +2,7 @@
 Post from the Get-Go
 
 ### Synopsis
-`pgg [-m GET] [-e foo] [-c config-file] http://example.com/{{my_var}}`
+`pgg [-m GET] [-e foo] [-c config-file] [-f "param_name=./foo.txt"] "http://example.com/{{my_var}}"`
 
 ### Description
 Pgg - Post from the Get-Go.
@@ -13,16 +13,19 @@ Pgg is a client you can use to send http requests while taking advantage of cust
    Specify the request method.
 
 -e, -env
-   Specify the environment to use.
+    Specify the environment to use.
 
 -c, -cfg
-   Specify an alternative config file.
+    Specify an alternative config file.
+
+-f, -file
+    Specify the file to upload.
 
 -h
-   Prints the help message.
+    Prints the help message.
 
 --help
-   Prints options details.
+    Prints options details.
 
 ## Files
 When starting pgg looks for configuration files in the following order:
