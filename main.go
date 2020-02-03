@@ -76,6 +76,51 @@ func die(msg interface{}) {
 	os.Exit(1)
 }
 
+func check(err error) {
+	if err != nil {
+		die(err)
+	}
+}
+
+func getFileRequest(url, fpath, fieldname string) *http.Request {
+	var body *bytes.Buffer
+
+	file, err := os.Open(fpath)
+	check(err)
+	defer file.Close()
+
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile(fieldname, filepath.Base(file.Name()))
+	check(err)
+
+	io.Copy(part, file)
+	writer.Close()
+	request, err := http.NewRequest("POST", url, body)
+	check(err)
+	
+	request.Header.Add("Content-Type", writer.FormDataContentType())
+	return request
+}
+
+func doRequest(request *http.Request) (string, string) {
+	var client = &http.Client{}
+
+	response, err := client.Do(request)
+	check(err)
+	defer response.Body.Close()
+
+	body, err := ioutil.ReadAll(response.Body)
+	check(err)
+
+	return string(body), response.Status
+}
+
+func populateForm(form *url.Values, data map[string]string) {
+	for key, value := range data {
+		form.Add(key, value)
+	}
+}
+
 func usage() {
 	var msg = `pgg - Post from the Get-Go
 Pgg is a tool that allows you to make http request.
@@ -96,55 +141,53 @@ OPTIONS
         Specify an alternative config file.
     -f, -file
         Specify a file to upload.
-    -h
-        Prints this help message.
-    --help
-        Prints options details.`
+    -fo, -form
+        Specify the form to use.
+    -h, -help
+        Prints this help message.`
 	fmt.Println(msg)
 }
 
-
 func main() {
 	var env Env
+	var err error
 	var cfg Config
-	var showHelp bool
 	var fmtUrl string
 	var method string // the request method
 	var envName string // the environment name
 	var cfgPath string // path to the config file
 	var fileFlag string // path to the file to upload
+	var formFlag string // form to use in the request
+	var form url.Values
 	var request *http.Request
 
 	// parse the argument and gets the flags values.
 	flag.StringVar(&method, "method", "GET", "Request method")
-	flag.StringVar(&method, "m", "GET", "Request method (shorthand)")
+	flag.StringVar(&method, "m", "GET", "Request method")
 	flag.StringVar(&envName, "env", "", "Environment to use")
 	flag.StringVar(&envName, "e", "", "Environment to use")
 	flag.StringVar(&cfgPath, "cfg", "", "Config file")
 	flag.StringVar(&cfgPath, "c", "", "Config file")
 	flag.StringVar(&fileFlag, "file", "", "Path to the file to upload")
 	flag.StringVar(&fileFlag, "f", "", "Path to the file to upload")
-	flag.BoolVar(&showHelp, "h", false, "Show help and usage")
+	flag.StringVar(&formFlag, "fo", "", "Form to use")
+	flag.StringVar(&formFlag, "form", "", "Form to use")
+	flag.Usage = usage
 	flag.Parse()
 
-	if showHelp || len(os.Args) < 2 {
+	if flag.NArg() == 0 {
 		usage()
 		return
 	}
 
 	// If no cfg file specified in argument look in the default paths.
 	if cfgPath == "" {
-		var err error
 		cfgPath, err = configLookup()
-		if err != nil {
-			die(err)
-		}
+		check(err)
 	}
 
-	cfg, err := loadConfig(cfgPath)
-	if err != nil {
-		die(err)
-	}
+	cfg, err = loadConfig(cfgPath)
+	check(err)
 
 	// The flag value overrides the default.
 	if envName == "" {
@@ -153,63 +196,30 @@ func main() {
 
 	var ok bool
 	if env, ok = cfg.Envs[envName]; !ok {
-		msg := fmt.Sprintf("error: cannot find environment %s.", envName)
-		die(msg)
+		die(fmt.Sprintf("error: cannot find environment %s.", envName))
 	}
+	fmtUrl = formatUrl(flag.Arg(flag.NArg()-1), env)
 
-	rawUrl := os.Args[len(os.Args)-1]
-	fmtUrl = formatUrl(rawUrl, env)
+	if formFlag != "" {
+		frm, ok := cfg.Forms[formFlag]
+		if !ok {
+			die(fmt.Sprintf("error: cannot find form %s.", formFlag))
+		}
+		populateForm(&form, frm)
+	}
 
 	// handle the file upload
 	if fileFlag != "" {
 		tokens := strings.Split(fileFlag, "=")
-		fieldname := tokens[0]
-		path := tokens[1]
-
-		file, err := os.Open(path)
-		if err != nil {
-			die(err)
-		}
-		defer file.Close()
-
-		requestBody := &bytes.Buffer{}
-		writer := multipart.NewWriter(requestBody)
-		part, err := writer.CreateFormFile(fieldname, filepath.Base(file.Name()))
-		if err != nil {
-			die(err)
-		}
-
-		io.Copy(part, file)
-		writer.Close()
-		request, err = http.NewRequest("POST", fmtUrl, requestBody)
-		if err != nil {
-			die(err)
-		}
-		request.Header.Add("Content-Type", writer.FormDataContentType())
+		request = getFileRequest(fmtUrl, tokens[1], tokens[0])
 	} else {
-		form := url.Values{}
-		var err error
 		request, err = http.NewRequest(strings.ToUpper(method), fmtUrl, strings.NewReader(form.Encode()))
-		if err != nil {
-			die(err)
-		}
+		check(err)
 	}
 
-	client := &http.Client{}
-	response, err := client.Do(request)
-	if err != nil {
-		die(err)
-	}
-	defer response.Body.Close()
-
-	content, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		die(err)
-	}
-
-	body := string(content)
+	body, status := doRequest(request)
 	if isatty() {
-		status := BrightMagenta(fmt.Sprintf("Status: %s", response.Status))
+		status := BrightMagenta(fmt.Sprintf("Status: %s", status))
 		url := BrightGreen(fmtUrl)
 
 		if body != "" {

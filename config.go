@@ -35,6 +35,7 @@ type Env struct {
 type Config struct {
 	DefaultEnv string `toml:"default_env"`
 	Envs map[string]Env `toml:"env"`
+	Forms map[string]map[string]string `toml:"form"`
 }
 
 func configLookup() (string, error) {
@@ -68,5 +69,6 @@ func loadConfig(path string) (Config, error) {
 		return Config{}, err
 	}
 
+	fmt.Println(cfg.Forms)
 	return cfg, nil
 }
