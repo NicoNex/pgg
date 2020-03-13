@@ -38,31 +38,78 @@ import (
 
 const PROGRAM_NAME = "pgg"
 
+type variable struct {
+	Key string
+	Val string
+}
+
 // TODO: find a way to do this in pure go
 func isatty() bool {
 	fd := os.Stdout.Fd()
 	return term.IsTerminal(int(fd))
 }
 
-func escapeVars(rawVars []string) []string {
-	var esc []string
+// func escapeVars(rawVars []string) []string {
+// 	var esc []string
 
-	for _, s := range rawVars {
-		tok := strings.Split(s, "=")
-		esc = append(esc, fmt.Sprintf("{{%s}}", tok[0]), tok[1])
+// 	for _, s := range rawVars {
+// 		tok := strings.Split(s, "=")
+// 		esc = append(esc, fmt.Sprintf("{{%s}}", tok[0]), tok[1])
+// 	}
+
+// 	return esc
+// }
+
+func parseCfgVars(rawVars []string, ch chan variable) {
+	var ret = make(map[string]string)
+	var re = regexp.MustCompile(` *[=|:] *`)
+
+	for k, s range rawVars {
+		tokens := re.Split(s, 2)
+
+		if len(tokens) != 2 {
+			fmt.Printf("error parsing variable #%d\n", k)
+			continue
+		}
+
+		ch <- variable{
+			Key: fmt.Sprintf("\{\{%s\}\}", tokens[0]),
+			Val: tokens[1],
+		}
 	}
-
-	return esc
 }
 
-// Replace the variables in the url with their values defined in the config.
+// Replaces the variables in the url with their values defined in the config.
+// func formatUrl(rawUrl string, env Env) string {
+// 	var url string
+// 	var vars []string
+
+// 	vars = escapeVars(env.Vars)
+// 	r := strings.NewReplacer(vars...)
+// 	url = r.Replace(rawUrl)
+
+// 	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, url); !ok {
+// 		url = fmt.Sprintf("%s%s", env.Scheme, url)
+// 	}
+
+// 	return url
+// }
+
+func replaceVars(str string, in chan variable, out chan string) {
+	for v := range in {
+		str = strings.ReplaceAll(str, v.Key, v.Val)
+	}
+
+	out <- str
+}
+
 func formatUrl(rawUrl string, env Env) string {
 	var url string
-	var vars []string
+	var varch = make(chan variable)
+	var urlch = make(chan string, 1)
 
-	vars = escapeVars(env.Vars)
-	r := strings.NewReplacer(vars...)
-	url = r.Replace(rawUrl)
+	go replaceVars(rawUrl, varch, urlch)
+	go parseCfgVars()
 
 	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, url); !ok {
 		url = fmt.Sprintf("%s%s", env.Scheme, url)
