@@ -43,28 +43,26 @@ type variable struct {
 	Val string
 }
 
-// TODO: find a way to do this in pure go
 func isatty() bool {
 	fd := os.Stdout.Fd()
 	return term.IsTerminal(int(fd))
 }
 
-// func escapeVars(rawVars []string) []string {
-// 	var esc []string
+func die(msg interface{}) {
+	fmt.Println(BrightRed(msg))
+	os.Exit(1)
+}
 
-// 	for _, s := range rawVars {
-// 		tok := strings.Split(s, "=")
-// 		esc = append(esc, fmt.Sprintf("{{%s}}", tok[0]), tok[1])
-// 	}
-
-// 	return esc
-// }
+func check(err error) {
+	if err != nil {
+		die(err)
+	}
+}
 
 func parseCfgVars(rawVars []string, ch chan variable) {
-	var ret = make(map[string]string)
 	var re = regexp.MustCompile(` *[=|:] *`)
 
-	for k, s range rawVars {
+	for k, s := range rawVars {
 		tokens := re.Split(s, 2)
 
 		if len(tokens) != 2 {
@@ -73,27 +71,11 @@ func parseCfgVars(rawVars []string, ch chan variable) {
 		}
 
 		ch <- variable{
-			Key: fmt.Sprintf("\{\{%s\}\}", tokens[0]),
+			Key: fmt.Sprintf("{{%s}}", tokens[0]),
 			Val: tokens[1],
 		}
 	}
 }
-
-// Replaces the variables in the url with their values defined in the config.
-// func formatUrl(rawUrl string, env Env) string {
-// 	var url string
-// 	var vars []string
-
-// 	vars = escapeVars(env.Vars)
-// 	r := strings.NewReplacer(vars...)
-// 	url = r.Replace(rawUrl)
-
-// 	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, url); !ok {
-// 		url = fmt.Sprintf("%s%s", env.Scheme, url)
-// 	}
-
-// 	return url
-// }
 
 func replaceVars(str string, in chan variable, out chan string) {
 	for v := range in {
@@ -109,24 +91,14 @@ func formatUrl(rawUrl string, env Env) string {
 	var urlch = make(chan string, 1)
 
 	go replaceVars(rawUrl, varch, urlch)
-	go parseCfgVars()
+	go parseCfgVars(env.Vars, varch)
 
+	url = <-urlch
 	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, url); !ok {
 		url = fmt.Sprintf("%s%s", env.Scheme, url)
 	}
 
 	return url
-}
-
-func die(msg interface{}) {
-	fmt.Println(BrightRed(msg))
-	os.Exit(1)
-}
-
-func check(err error) {
-	if err != nil {
-		die(err)
-	}
 }
 
 func getFileRequest(url, fpath, fieldname string) *http.Request {
@@ -144,7 +116,7 @@ func getFileRequest(url, fpath, fieldname string) *http.Request {
 	writer.Close()
 	request, err := http.NewRequest("POST", url, body)
 	check(err)
-	
+
 	request.Header.Add("Content-Type", writer.FormDataContentType())
 	return request
 }
@@ -180,15 +152,15 @@ SYNOPSIS
     pgg [options] http://foobar.org
 
 OPTIONS
-    -m, -method
+    -m
         Specify the request method. (default GET)
-    -e, -env
+    -e
         Specify the environment to use.
-    -c, -cfg
+    -c
         Specify an alternative config file.
-    -f, -file
+    -f
         Specify a file to upload.
-    -fo, -form
+    -fo
         Specify the form to use.
     -h, -help
         Prints this help message.`
@@ -211,15 +183,11 @@ func main() {
 	// parse the argument and gets the flags values.
 	flag.StringVar(&method, "method", "GET", "Request method")
 	flag.StringVar(&method, "m", "GET", "Request method")
-	flag.StringVar(&envName, "env", "", "Environment to use")
 	flag.StringVar(&envName, "e", "", "Environment to use")
-	flag.StringVar(&cfgPath, "cfg", "", "Config file")
 	flag.StringVar(&cfgPath, "c", "", "Config file")
-	flag.StringVar(&fileFlag, "file", "", "Path to the file to upload")
 	flag.StringVar(&fileFlag, "f", "", "Path to the file to upload")
 	flag.StringVar(&formFlag, "fo", "", "Form to use")
-	flag.StringVar(&formFlag, "form", "", "Form to use")
-	flag.Usage = usage
+	// flag.Usage = usage
 	flag.Parse()
 
 	if flag.NArg() == 0 {
