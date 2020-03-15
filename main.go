@@ -19,18 +19,18 @@
 package main
 
 import (
-	"os"
-	"io"
-	"fmt"
-	"flag"
 	"bytes"
+	"flag"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"mime/multipart"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
-	"net/url"
-	"net/http"
-	"io/ioutil"
-	"path/filepath"
-	"mime/multipart"
 
 	. "github.com/logrusorgru/aurora"
 	term "golang.org/x/crypto/ssh/terminal"
@@ -198,16 +198,31 @@ func getBodyCfgForm(data map[string]string) bytes.Buffer {
 	return body
 }
 
+func parseHeader(rawHeader string) pair {
+	re := regexp.MustCompile(` *[=|:] *`)
+	data := re.Split(rawHeader, -1)
+	if len(data) != 2 {
+		die("error: invaild header")
+	}
+
+	return pair{
+		Key: data[0],
+		Val: data[1],
+	}
+}
+
 func main() {
 	var env Env
 	var err error
 	var cfg Config
 	var fmtUrl string
-	var method string // the request method
-	var envName string // the environment name
-	var cfgPath string // path to the config file
+	var method string   // the request method
+	var envName string  // the environment name
+	var cfgPath string  // path to the config file
 	var formFlag string // the form to use in the request
-	var cfgForm string // form to use in the request
+	var cfgForm string  // form to use in the request
+	var headerFlag string
+	var dataFlag string
 	var body bytes.Buffer
 	var request *http.Request
 
@@ -215,8 +230,10 @@ func main() {
 	flag.StringVar(&method, "m", "GET", "Request method.")
 	flag.StringVar(&envName, "e", "", "Environment to use.")
 	flag.StringVar(&cfgPath, "c", "", "Path to the config file.")
-	flag.StringVar(&formFlag, "f", "", "Form key value pairs.")
+	flag.StringVar(&formFlag, "f", "", "Form key-value pairs.")
 	flag.StringVar(&cfgForm, "fn", "", "Form name from the config file.")
+	flag.StringVar(&headerFlag, "H", "", "Header key-value pair to send.")
+	flag.StringVar(&dataFlag, "d", "", "Raw data to send.")
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -245,7 +262,9 @@ func main() {
 	fmtUrl = formatUrl(flag.Arg(0), env)
 
 	// Handle the form.
-	if formFlag != "" {
+	if dataFlag != "" {
+		body = *bytes.NewBuffer([]byte(dataFlag))
+	} else if formFlag != "" {
 		body = getBody(formFlag)
 	} else if cfgForm != "" {
 		data, ok := cfg.Forms[cfgForm]
@@ -257,6 +276,12 @@ func main() {
 
 	request, err = http.NewRequest(strings.ToUpper(method), fmtUrl, &body)
 	check(err)
+
+	// Handle the header flag.
+	if headerFlag != "" {
+		h := parseHeader(headerFlag)
+		request.Header.Add(h.Key, h.Val)
+	}
 
 	response, status := sendRequest(request)
 	if isatty() {
