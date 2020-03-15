@@ -69,6 +69,5 @@ func loadConfig(path string) (Config, error) {
 		return Config{}, err
 	}
 
-	fmt.Println(cfg.Forms)
 	return cfg, nil
 }
