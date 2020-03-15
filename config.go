@@ -19,23 +19,23 @@
 package main
 
 import (
-	"os"
-	"fmt"
 	"errors"
+	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/BurntSushi/toml"
 )
 
 type Env struct {
-	Vars []string `toml:"vars"`
-	Scheme string `toml:"scheme"`
+	Vars   []string `toml:"vars"`
+	Scheme string   `toml:"scheme"`
 }
 
 type Config struct {
-	DefaultEnv string `toml:"default_env"`
-	Envs map[string]Env `toml:"env"`
-	Forms map[string]map[string]string `toml:"form"`
+	DefaultEnv string                       `toml:"default_env"`
+	Envs       map[string]Env               `toml:"env"`
+	Forms      map[string]map[string]string `toml:"form"`
 }
 
 func configLookup() (string, error) {

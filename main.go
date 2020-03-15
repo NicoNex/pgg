@@ -117,13 +117,12 @@ func sendRequest(request *http.Request) (string, string) {
 }
 
 func parseForm(raw string, outch chan pair) {
-	re := regexp.MustCompile(`\s*`)
+	re := regexp.MustCompile(`\s+`)
 	for _, entry := range re.Split(raw, -1) {
 		toks := strings.Split(entry, "=")
 		if len(toks) != 2 {
 			continue
 		}
-
 		outch <- pair{
 			Key: toks[0],
 			Val: toks[1],
@@ -163,6 +162,7 @@ func getBody(form string) bytes.Buffer {
 	for p := range datach {
 		switch p.Val[0] {
 		case '@':
+			// TODO: fix index out of range here
 			fname := filepath.Base(p.Val[1:])
 			fwriter, err := writer.CreateFormFile(p.Key, fname)
 			check(err)
@@ -200,7 +200,7 @@ func getBodyCfgForm(data map[string]string) bytes.Buffer {
 
 func parseHeader(rawHeader string) pair {
 	re := regexp.MustCompile(` *[=|:] *`)
-	data := re.Split(rawHeader, -1)
+	data := re.Split(rawHeader, 2)
 	if len(data) != 2 {
 		die("error: invaild header")
 	}
@@ -264,20 +264,24 @@ func main() {
 	// Handle the form.
 	if dataFlag != "" {
 		body = *bytes.NewBuffer([]byte(dataFlag))
+		method = "POST"
 	} else if formFlag != "" {
 		body = getBody(formFlag)
+		method = "POST"
 	} else if cfgForm != "" {
 		data, ok := cfg.Forms[cfgForm]
 		if !ok {
 			die(fmt.Sprintf("error: cannot find form %s.", cfgForm))
 		}
 		body = getBodyCfgForm(data)
+		method = "POST"
 	}
 
 	request, err = http.NewRequest(strings.ToUpper(method), fmtUrl, &body)
 	check(err)
 
 	// Handle the header flag.
+	// TODO: fix the header that doesn't get added.
 	if headerFlag != "" {
 		h := parseHeader(headerFlag)
 		request.Header.Add(h.Key, h.Val)
