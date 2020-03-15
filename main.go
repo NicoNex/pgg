@@ -38,7 +38,7 @@ import (
 
 const PROGRAM_NAME = "pgg"
 
-type variable struct {
+type pair struct {
 	Key string
 	Val string
 }
@@ -59,18 +59,18 @@ func check(err error) {
 	}
 }
 
-func parseCfgVars(rawVars []string, ch chan variable) {
+func parseCfgVars(rawVars []string, ch chan pair) {
 	var re = regexp.MustCompile(` *[=|:] *`)
 
 	for k, s := range rawVars {
 		tokens := re.Split(s, 2)
 
 		if len(tokens) != 2 {
-			fmt.Printf("error parsing variable #%d\n", k)
+			fmt.Printf("error parsing pair #%d\n", k)
 			continue
 		}
 
-		ch <- variable{
+		ch <- pair{
 			Key: fmt.Sprintf("{{%s}}", tokens[0]),
 			Val: tokens[1],
 		}
@@ -78,8 +78,8 @@ func parseCfgVars(rawVars []string, ch chan variable) {
 	close(ch)
 }
 
-func replaceVars(str string, in chan variable, out chan string) {
-	for v := range in {
+func replaceVars(str string, varch chan pair, out chan string) {
+	for v := range varch {
 		str = strings.ReplaceAll(str, v.Key, v.Val)
 	}
 
@@ -88,7 +88,7 @@ func replaceVars(str string, in chan variable, out chan string) {
 
 func formatUrl(rawUrl string, env Env) string {
 	var url string
-	var varch = make(chan variable)
+	var varch = make(chan pair)
 	var urlch = make(chan string, 1)
 
 	go replaceVars(rawUrl, varch, urlch)
@@ -103,27 +103,7 @@ func formatUrl(rawUrl string, env Env) string {
 	return url
 }
 
-func getFileRequest(url, fpath, fieldname string) *http.Request {
-	var body *bytes.Buffer
-
-	file, err := os.Open(fpath)
-	check(err)
-	defer file.Close()
-
-	writer := multipart.NewWriter(body)
-	part, err := writer.CreateFormFile(fieldname, filepath.Base(file.Name()))
-	check(err)
-
-	io.Copy(part, file)
-	writer.Close()
-	request, err := http.NewRequest("POST", url, body)
-	check(err)
-
-	request.Header.Add("Content-Type", writer.FormDataContentType())
-	return request
-}
-
-func doRequest(request *http.Request) (string, string) {
+func sendRequest(request *http.Request) (string, string) {
 	var client = &http.Client{}
 
 	response, err := client.Do(request)
@@ -136,37 +116,86 @@ func doRequest(request *http.Request) (string, string) {
 	return string(body), response.Status
 }
 
-func populateForm(form *url.Values, data map[string]string) {
-	for key, value := range data {
-		form.Add(key, value)
+func parseForm(raw string, outch chan pair) {
+	re := regexp.MustCompile(`\s*`)
+	for _, entry := range re.Split(raw, -1) {
+		toks := strings.Split(entry, "=")
+		if len(toks) != 2 {
+			continue
+		}
+
+		outch <- pair{
+			Key: toks[0],
+			Val: toks[1],
+		}
 	}
+	close(outch)
 }
 
-func usage() {
-	var msg = `pgg - Post from the Get-Go
-Pgg is a tool that allows you to make http request.
+func populateForm(r *http.Request, rawform string) url.Values {
+	var form url.Values
+	var data = make(chan pair)
 
-When starting pgg looks for configuration files in the following order:
-    1. ~/.config/pgg/config
-    2. ~/.pgg/config
+	go parseForm(rawform, data)
+	for p := range data {
+		form.Add(p.Key, p.Val)
+	}
 
-SYNOPSIS
-    pgg [options] http://foobar.org
+	return form
+}
 
-OPTIONS
-    -m
-        Specify the request method. (default GET)
-    -e
-        Specify the environment to use.
-    -c
-        Specify an alternative config file.
-    -f
-        Specify a file to upload.
-    -fo
-        Specify the form to use.
-    -h, -help
-        Prints this help message.`
-	fmt.Println(msg)
+func getFileContent(w io.Writer, fname string) {
+	file, err := os.Open(fname)
+	check(err)
+	defer file.Close()
+
+	_, err = io.Copy(w, file)
+	check(err)
+}
+
+func getBody(form string) bytes.Buffer {
+	var body bytes.Buffer
+	var datach = make(chan pair)
+
+	go parseForm(form, datach)
+	writer := multipart.NewWriter(&body)
+
+	for p := range datach {
+		switch p.Val[0] {
+		case '@':
+			fname := filepath.Base(p.Val[1:])
+			fwriter, err := writer.CreateFormFile(p.Key, fname)
+			check(err)
+			getFileContent(fwriter, fname)
+
+		default:
+			err := writer.WriteField(p.Key, p.Val)
+			check(err)
+		}
+	}
+	writer.Close()
+	return body
+}
+
+func getBodyCfgForm(data map[string]string) bytes.Buffer {
+	var body bytes.Buffer
+
+	writer := multipart.NewWriter(&body)
+	for key, value := range data {
+		switch value[0] {
+		case '@':
+			fname := value[1:]
+			fwriter, err := writer.CreateFormFile(key, fname)
+			check(err)
+			getFileContent(fwriter, fname)
+
+		default:
+			err := writer.WriteField(key, value)
+			check(err)
+		}
+	}
+	writer.Close()
+	return body
 }
 
 func main() {
@@ -177,23 +206,21 @@ func main() {
 	var method string // the request method
 	var envName string // the environment name
 	var cfgPath string // path to the config file
-	var fileFlag string // path to the file to upload
-	var formFlag string // form to use in the request
-	var form url.Values
+	var formFlag string // the form to use in the request
+	var cfgForm string // form to use in the request
+	var body bytes.Buffer
 	var request *http.Request
 
 	// parse the argument and gets the flags values.
-	flag.StringVar(&method, "method", "GET", "Request method")
-	flag.StringVar(&method, "m", "GET", "Request method")
-	flag.StringVar(&envName, "e", "", "Environment to use")
-	flag.StringVar(&cfgPath, "c", "", "Config file")
-	flag.StringVar(&fileFlag, "f", "", "Path to the file to upload")
-	flag.StringVar(&formFlag, "fo", "", "Form to use")
-	// flag.Usage = usage
+	flag.StringVar(&method, "m", "GET", "Request method.")
+	flag.StringVar(&envName, "e", "", "Environment to use.")
+	flag.StringVar(&cfgPath, "c", "", "Path to the config file.")
+	flag.StringVar(&formFlag, "f", "", "Form key value pairs.")
+	flag.StringVar(&cfgForm, "fn", "", "Form name from the config file.")
 	flag.Parse()
 
 	if flag.NArg() == 0 {
-		usage()
+		flag.Usage()
 		return
 	}
 
@@ -215,36 +242,33 @@ func main() {
 	if env, ok = cfg.Envs[envName]; !ok {
 		die(fmt.Sprintf("error: cannot find environment %s.", envName))
 	}
-	fmtUrl = formatUrl(flag.Arg(flag.NArg()-1), env)
+	fmtUrl = formatUrl(flag.Arg(0), env)
 
+	// Handle the form.
 	if formFlag != "" {
-		frm, ok := cfg.Forms[formFlag]
+		body = getBody(formFlag)
+	} else if cfgForm != "" {
+		data, ok := cfg.Forms[cfgForm]
 		if !ok {
-			die(fmt.Sprintf("error: cannot find form %s.", formFlag))
+			die(fmt.Sprintf("error: cannot find form %s.", cfgForm))
 		}
-		populateForm(&form, frm)
+		body = getBodyCfgForm(data)
 	}
 
-	// handle the file upload
-	if fileFlag != "" {
-		tokens := strings.Split(fileFlag, "=")
-		request = getFileRequest(fmtUrl, tokens[1], tokens[0])
-	} else {
-		request, err = http.NewRequest(strings.ToUpper(method), fmtUrl, strings.NewReader(form.Encode()))
-		check(err)
-	}
+	request, err = http.NewRequest(strings.ToUpper(method), fmtUrl, &body)
+	check(err)
 
-	body, status := doRequest(request)
+	response, status := sendRequest(request)
 	if isatty() {
 		status := BrightMagenta(fmt.Sprintf("Status: %s", status))
 		url := BrightGreen(fmtUrl)
 
-		if body != "" {
-			fmt.Printf("%s\n%s\n%s\n", body, status, url)
+		if response != "" {
+			fmt.Printf("%s\n%s\n%s\n", response, status, url)
 		} else {
 			fmt.Printf("%s\n%s\n", status, url)
 		}
 	} else {
-		fmt.Println(body)
+		fmt.Println(response)
 	}
 }
