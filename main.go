@@ -75,6 +75,7 @@ func parseCfgVars(rawVars []string, ch chan variable) {
 			Val: tokens[1],
 		}
 	}
+	close(ch)
 }
 
 func replaceVars(str string, in chan variable, out chan string) {
@@ -94,6 +95,7 @@ func formatUrl(rawUrl string, env Env) string {
 	go parseCfgVars(env.Vars, varch)
 
 	url = <-urlch
+	close(urlch)
 	if ok, _ := regexp.MatchString(`[a-z]+:\/\/`, url); !ok {
 		url = fmt.Sprintf("%s%s", env.Scheme, url)
 	}
