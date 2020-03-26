@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"encoding/json"
 
 	. "github.com/logrusorgru/aurora"
 	term "golang.org/x/crypto/ssh/terminal"
@@ -211,6 +212,22 @@ func parseHeader(rawHeader string) pair {
 	}
 }
 
+func prettify(j string) string {
+	var pj bytes.Buffer
+	var data = []byte(j)
+
+	if !json.Valid(data) {
+		return j
+	}
+
+	err := json.Indent(&pj, data, "", "  ")
+	if err != nil {
+		return j
+	}
+
+	return pj.String()
+}
+
 func main() {
 	var env Env
 	var err error
@@ -223,6 +240,7 @@ func main() {
 	var cfgForm string  // form to use in the request
 	var headerFlag string
 	var dataFlag string
+	var pretty bool
 	var body bytes.Buffer
 	var request *http.Request
 
@@ -234,6 +252,7 @@ func main() {
 	flag.StringVar(&cfgForm, "fn", "", "Form name from the config file.")
 	flag.StringVar(&headerFlag, "h", "", "Header key-value pair to send.")
 	flag.StringVar(&dataFlag, "d", "", "Raw data to send.")
+	flag.BoolVar(&pretty, "p", false, "Makes the response json human-readable")
 	flag.Parse()
 
 	if flag.NArg() == 0 {
@@ -283,6 +302,9 @@ func main() {
 	}
 
 	response, status := sendRequest(request)
+	if pretty {
+		response = prettify(response)
+	}
 	if isatty() {
 		status := BrightMagenta(fmt.Sprintf("Status: %s", status))
 		url := BrightGreen(fmtUrl)
