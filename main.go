@@ -232,7 +232,7 @@ func main() {
 	flag.StringVar(&cfgPath, "c", "", "Path to the config file.")
 	flag.StringVar(&formFlag, "f", "", "Form key-value pairs.")
 	flag.StringVar(&cfgForm, "fn", "", "Form name from the config file.")
-	flag.StringVar(&headerFlag, "H", "", "Header key-value pair to send.")
+	flag.StringVar(&headerFlag, "h", "", "Header key-value pair to send.")
 	flag.StringVar(&dataFlag, "d", "", "Raw data to send.")
 	flag.Parse()
 
@@ -264,24 +264,19 @@ func main() {
 	// Handle the form.
 	if dataFlag != "" {
 		body = *bytes.NewBuffer([]byte(dataFlag))
-		method = "POST"
 	} else if formFlag != "" {
 		body = getBody(formFlag)
-		method = "POST"
 	} else if cfgForm != "" {
 		data, ok := cfg.Forms[cfgForm]
 		if !ok {
 			die(fmt.Sprintf("error: cannot find form %s.", cfgForm))
 		}
 		body = getBodyCfgForm(data)
-		method = "POST"
 	}
 
 	request, err = http.NewRequest(strings.ToUpper(method), fmtUrl, &body)
 	check(err)
 
-	// Handle the header flag.
-	// TODO: fix the header that doesn't get added.
 	if headerFlag != "" {
 		h := parseHeader(headerFlag)
 		request.Header.Add(h.Key, h.Val)
